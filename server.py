@@ -1,0 +1,83 @@
+import json
+
+from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel
+
+from llm import QwenChat
+
+
+app = FastAPI(title="molla-llm")
+chat = QwenChat()
+
+
+class ChatRequest(BaseModel):
+    query: str
+
+
+class ChatResponse(BaseModel):
+    answer: str
+
+
+async def read_streamed_text(request: Request) -> str:
+    chunks: list[str] = []
+
+    async for chunk in request.stream():
+        if not chunk:
+            continue
+        chunks.append(chunk.decode("utf-8"))
+
+    raw_text = "".join(chunks).strip()
+    if not raw_text:
+        raise HTTPException(status_code=400, detail="Empty streamed body")
+
+    if "data:" in raw_text:
+        sse_chunks: list[str] = []
+        for line in raw_text.splitlines():
+            line = line.strip()
+            if not line or not line.startswith("data:"):
+                continue
+            payload = line[5:].strip()
+            if payload == "[DONE]":
+                break
+            sse_chunks.append(payload)
+        if sse_chunks:
+            raw_text = " ".join(sse_chunks).strip()
+
+    ndjson_lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+    if ndjson_lines and all(line.startswith("{") and line.endswith("}") for line in ndjson_lines):
+        text_parts: list[str] = []
+        for line in ndjson_lines:
+            try:
+                data = json.loads(line)
+            except json.JSONDecodeError:
+                text_parts = []
+                break
+
+            if isinstance(data, dict):
+                text = data.get("text") or data.get("query") or data.get("partial")
+                if isinstance(text, str) and text.strip():
+                    text_parts.append(text.strip())
+
+        if text_parts:
+            raw_text = " ".join(text_parts).strip()
+
+    if not raw_text:
+        raise HTTPException(status_code=400, detail="No text extracted from stream")
+
+    return raw_text
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.post("/chat", response_model=ChatResponse)
+def chat_endpoint(payload: ChatRequest) -> ChatResponse:
+    return ChatResponse(answer=chat.ask(payload.query))
+
+
+@app.post("/chat/stream", response_model=ChatResponse)
+async def chat_stream_endpoint(request: Request) -> ChatResponse:
+    query = await read_streamed_text(request)
+    return ChatResponse(answer=chat.ask(query))

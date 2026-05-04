@@ -8,6 +8,7 @@ from transformers import (
 import torch
 import traceback
 import warnings
+import os
 
 warnings.filterwarnings("ignore")
 
@@ -29,8 +30,10 @@ gen_config = GenerationConfig(
 
 
 class QwenChat:
-    def __init__(self, model_name=MODEL_NAME, cache_dir="/home/dltkd/molla/MollaAI-AI/demo/"):
+    def __init__(self, model_name=MODEL_NAME, cache_dir=None):
         print("🔧 LLM 모델 로딩 중...")
+
+        cache_dir = cache_dir or os.getenv("HF_HOME")
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForCausalLM.from_pretrained(
