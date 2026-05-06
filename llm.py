@@ -1,14 +1,14 @@
+import os
+import traceback
+import warnings
+from threading import Thread
+import torch
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
-    # BitsAndBytesConfig,
-    pipeline,
     GenerationConfig,
+    TextIteratorStreamer,
 )
-import torch
-import traceback
-import warnings
-import os
 
 warnings.filterwarnings("ignore")
 
@@ -45,12 +45,6 @@ class QwenChat:
             cache_dir=cache_dir,
         )
 
-        self.pipe = pipeline(
-            task="text-generation",
-            model=self.model,
-            tokenizer=self.tokenizer,
-        )
-
         print("✅ LLM 준비 완료")
 
     def get_prompt(self, query: str):
@@ -76,6 +70,13 @@ You are an English conversation teacher. Please lead the conversation naturally.
 
         return full_prompt, prompt
 
+    def _tokenize_prompt(self, prompt: str) -> dict[str, torch.Tensor]:
+        inputs = self.tokenizer(prompt, return_tensors="pt")
+        model_device = getattr(self.model, "device", None)
+        if model_device is None:
+            return inputs
+        return {key: value.to(model_device) for key, value in inputs.items()}
+
     def answer_extraction(self, response: str) -> str:
         try:
             if "<|im_start|>assistant" in response:
@@ -92,12 +93,42 @@ You are an English conversation teacher. Please lead the conversation naturally.
             print(traceback.format_exc())
             return response
 
-    def ask(self, query: str) -> str:
+    def stream_answer(self, query: str):
         try:
             _, prompt = self.get_prompt(query)
-            raw = self.pipe(prompt, generation_config=gen_config)
-            generated_text = raw[0]["generated_text"]
-            answer = self.answer_extraction(generated_text)
+            inputs = self._tokenize_prompt(prompt)
+            streamer = TextIteratorStreamer(
+                self.tokenizer,
+                skip_prompt=True,
+                skip_special_tokens=True,
+            )
+
+            generation_kwargs = {
+                **inputs,
+                "generation_config": gen_config,
+                "streamer": streamer,
+            }
+
+            worker = Thread(
+                target=self.model.generate,
+                kwargs=generation_kwargs,
+                daemon=True,
+            )
+            worker.start()
+
+            for chunk in streamer:
+                if chunk:
+                    yield chunk
+
+            worker.join()
+        except Exception:
+            print("Error in stream_answer()")
+            print(traceback.format_exc())
+            yield "오류가 발생했습니다."
+
+    def ask(self, query: str) -> str:
+        try:
+            answer = self.answer_extraction("".join(self.stream_answer(query)))
             return answer
 
         except Exception:

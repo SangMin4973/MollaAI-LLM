@@ -1,7 +1,9 @@
 import json
+from typing import Iterator
 
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
+from fastapi.responses import StreamingResponse
 
 from llm import QwenChat
 
@@ -75,6 +77,18 @@ def health() -> dict[str, str]:
 @app.post("/chat", response_model=ChatResponse)
 def chat_endpoint(payload: ChatRequest) -> ChatResponse:
     return ChatResponse(answer=chat.ask(payload.query))
+
+
+def token_event_stream(query: str) -> Iterator[str]:
+    for token in chat.stream_answer(query):
+        payload = json.dumps({"token": token}, ensure_ascii=False)
+        yield f"data: {payload}\n\n"
+    yield "data: [DONE]\n\n"
+
+
+@app.post("/chat/tokens")
+def chat_token_stream_endpoint(payload: ChatRequest) -> StreamingResponse:
+    return StreamingResponse(token_event_stream(payload.query), media_type="text/event-stream")
 
 
 @app.post("/chat/stream", response_model=ChatResponse)
