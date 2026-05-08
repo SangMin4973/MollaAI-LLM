@@ -28,7 +28,6 @@ gen_config = GenerationConfig(
     top_k=50,
 )
 
-
 class QwenChat:
     def __init__(self, model_name=MODEL_NAME, cache_dir=None):
         print("🔧 LLM 모델 로딩 중...")
