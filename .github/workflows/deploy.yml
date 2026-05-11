@@ -28,7 +28,6 @@ jobs:
 
     # 2. 도커 이미지 빌드 및 푸시
     - name: Build and push
-      working-directory: ./molla-llm
       run: |
         docker build -t ${{ env.DOCKERHUB_REPO }}:latest .
         docker push ${{ env.DOCKERHUB_REPO }}:latest
@@ -62,7 +61,7 @@ jobs:
           echo "📦 Uploading compose file to $IP..."
           ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@$IP "mkdir -p ${{ env.REMOTE_APP_DIR }}"
           scp -i private_key.pem -o StrictHostKeyChecking=no \
-            ${{ github.workspace }}/molla-llm/docker-compose.yml \
+            ${{ github.workspace }}/docker-compose.yml \
             ubuntu@$IP:${{ env.REMOTE_APP_DIR }}/docker-compose.yml
         done
 
