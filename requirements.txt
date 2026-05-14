@@ -5,3 +5,4 @@ accelerate==1.10.1
 sentencepiece==0.2.1
 protobuf==6.32.1
 einops==0.8.1
+qdrant-client==1.15.1

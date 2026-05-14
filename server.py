@@ -1,15 +1,34 @@
 import json
+import logging
 from typing import Iterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 
 from llm import QwenChat
+from qdrant_store import UserMemoryStore
 
 
-app = FastAPI(title="molla-llm")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("molla.llm")
 chat = QwenChat()
+memory_store = UserMemoryStore()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    memory_store.ensure_collection()
+    logger.info(
+        "qdrant_ready collection=%s url=%s",
+        memory_store.collection_name,
+        memory_store.url,
+    )
+    yield
+
+
+app = FastAPI(title="molla-llm", lifespan=lifespan)
 
 
 class ChatRequest(BaseModel):
