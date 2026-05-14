@@ -1,5 +1,7 @@
 import json
 import logging
+import time
+import uuid
 from typing import Iterator
 from contextlib import asynccontextmanager
 
@@ -98,16 +100,32 @@ def chat_endpoint(payload: ChatRequest) -> ChatResponse:
     return ChatResponse(answer=chat.ask(payload.query))
 
 
-def token_event_stream(query: str) -> Iterator[str]:
-    for token in chat.stream_answer(query):
+def token_event_stream(query: str, request_id: str) -> Iterator[str]:
+    started_at = time.perf_counter()
+    logger.info(
+        "chat_request_received request_id=%s query_len=%s",
+        request_id,
+        len(query),
+    )
+    token_count = 0
+    for token in chat.stream_answer(query, request_id=request_id):
+        token_count += 1
         payload = json.dumps({"token": token}, ensure_ascii=False)
         yield f"data: {payload}\n\n"
+    logger.info(
+        "chat_response_done request_id=%s elapsed_ms=%s tokens=%s",
+        request_id,
+        int((time.perf_counter() - started_at) * 1000),
+        token_count,
+    )
     yield "data: [DONE]\n\n"
 
 
 @app.post("/chat/tokens")
 def chat_token_stream_endpoint(payload: ChatRequest) -> StreamingResponse:
-    return StreamingResponse(token_event_stream(payload.query), media_type="text/event-stream")
+    request_id = uuid.uuid4().hex[:12]
+    logger.info("chat_stream_open request_id=%s", request_id)
+    return StreamingResponse(token_event_stream(payload.query, request_id), media_type="text/event-stream")
 
 
 @app.post("/chat/stream", response_model=ChatResponse)

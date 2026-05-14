@@ -1,6 +1,8 @@
 import os
+import logging
 import traceback
 import warnings
+import time
 from threading import Thread
 import torch
 from transformers import (
@@ -11,6 +13,7 @@ from transformers import (
 )
 
 warnings.filterwarnings("ignore")
+logger = logging.getLogger("molla.llm")
 
 MODEL_NAME = "Qwen/Qwen3-4B"
 # quantization_config = BitsAndBytesConfig(
@@ -110,10 +113,32 @@ Follow these rules strictly:
             print(traceback.format_exc())
             return response
 
-    def stream_answer(self, query: str):
+    def stream_answer(self, query: str, request_id: str = "-"):
         try:
+            started_at = time.perf_counter()
+            logger.info(
+                "llm_stream_prepare request_id=%s query_len=%s",
+                request_id,
+                len(query),
+            )
             _, prompt = self.get_prompt(query)
+            logger.info(
+                "llm_prompt_ready request_id=%s elapsed_ms=%s prompt_len=%s",
+                request_id,
+                int((time.perf_counter() - started_at) * 1000),
+                len(prompt),
+            )
             inputs = self._tokenize_prompt(prompt)
+            input_tokens = 0
+            input_ids = inputs.get("input_ids")
+            if input_ids is not None and getattr(input_ids, "shape", None) is not None:
+                input_tokens = int(input_ids.shape[-1])
+            logger.info(
+                "llm_inputs_ready request_id=%s elapsed_ms=%s input_tokens=%s",
+                request_id,
+                int((time.perf_counter() - started_at) * 1000),
+                input_tokens,
+            )
             streamer = TextIteratorStreamer(
                 self.tokenizer,
                 skip_prompt=True,
@@ -132,15 +157,34 @@ Follow these rules strictly:
                 daemon=True,
             )
             worker.start()
+            logger.info(
+                "llm_generate_started request_id=%s elapsed_ms=%s",
+                request_id,
+                int((time.perf_counter() - started_at) * 1000),
+            )
 
+            chunk_count = 0
             for chunk in streamer:
                 if chunk:
+                    chunk_count += 1
+                    if chunk_count == 1:
+                        logger.info(
+                            "llm_first_chunk request_id=%s elapsed_ms=%s chunk=%r",
+                            request_id,
+                            int((time.perf_counter() - started_at) * 1000),
+                            chunk[:80],
+                        )
                     yield chunk
 
             worker.join()
+            logger.info(
+                "llm_stream_done request_id=%s elapsed_ms=%s chunks=%s",
+                request_id,
+                int((time.perf_counter() - started_at) * 1000),
+                chunk_count,
+            )
         except Exception:
-            print("Error in stream_answer()")
-            print(traceback.format_exc())
+            logger.exception("llm_stream_failed request_id=%s", request_id)
             yield "오류가 발생했습니다."
 
     def ask(self, query: str) -> str:
