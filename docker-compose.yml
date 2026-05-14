@@ -12,7 +12,7 @@ services:
       qdrant:
         condition: service_started
 
-  qdrant:ㅎ
+  qdrant:
     image: qdrant/qdrant:latest
     container_name: molla-qdrant
     restart: unless-stopped
