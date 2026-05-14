@@ -30,7 +30,9 @@ warnings.filterwarnings("ignore")
 class DatasetQwenGenerator:
     def __init__(self, model_name: str = MODEL_NAME, cache_dir: str = "./"):
         print("Dataset LLM model loading...", file=sys.stderr)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        # Some checkpoints serialize `extra_special_tokens` as a list, which newer
+        # transformers versions reject. Override it with a dict to keep loading stable.
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, extra_special_tokens={})
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
             quantization_config=quantization_config,
