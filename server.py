@@ -2,11 +2,11 @@ import json
 import logging
 import time
 import uuid
-from typing import Iterator
+from typing import Any, Iterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
 
 from llm import QwenChat
@@ -39,6 +39,24 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
+
+
+class MemoryPointPayload(BaseModel):
+    sessionId: str
+    phoneNumber: str
+    content: str
+    sequenceOrder: int
+    userId: str | None = None
+
+
+class MemoryPoint(BaseModel):
+    id: str
+    vector: list[float]
+    payload: MemoryPointPayload
+
+
+class MemoryUpsertRequest(BaseModel):
+    points: list[MemoryPoint] = Field(min_length=1)
 
 
 async def read_streamed_text(request: Request) -> str:
@@ -132,3 +150,11 @@ def chat_token_stream_endpoint(payload: ChatRequest) -> StreamingResponse:
 async def chat_stream_endpoint(request: Request) -> ChatResponse:
     query = await read_streamed_text(request)
     return ChatResponse(answer=chat.ask(query))
+
+
+@app.put("/memory/points")
+def upsert_memory_points(payload: MemoryUpsertRequest) -> dict[str, Any]:
+    points = [point.model_dump(mode="python") for point in payload.points]
+    memory_store.upsert_points(points)
+    logger.info("memory_points_upserted count=%s", len(points))
+    return {"status": "ok", "count": len(points)}

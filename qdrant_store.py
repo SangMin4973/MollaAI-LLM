@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import Any
 
 from qdrant_client import QdrantClient, models
 
@@ -50,9 +51,11 @@ class UserMemoryStore:
 
     def _ensure_payload_indexes(self) -> None:
         indexes = (
-            ("user_id", models.PayloadSchemaType.KEYWORD),
-            ("text", models.PayloadSchemaType.TEXT),
-            ("importance", models.PayloadSchemaType.FLOAT),
+            ("sessionId", models.PayloadSchemaType.KEYWORD),
+            ("phoneNumber", models.PayloadSchemaType.KEYWORD),
+            ("content", models.PayloadSchemaType.TEXT),
+            ("sequenceOrder", models.PayloadSchemaType.INTEGER),
+            ("userId", models.PayloadSchemaType.KEYWORD),
         )
         for field_name, field_schema in indexes:
             try:
@@ -67,3 +70,10 @@ class UserMemoryStore:
                     self.collection_name,
                     field_name,
                 )
+
+    def upsert_points(self, points: list[dict[str, Any]]) -> None:
+        self.client.upsert(
+            collection_name=self.collection_name,
+            wait=True,
+            points=points,
+        )
