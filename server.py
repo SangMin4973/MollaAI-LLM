@@ -42,11 +42,12 @@ class ChatResponse(BaseModel):
 
 
 class MemoryPointPayload(BaseModel):
-    sessionId: str
-    phoneNumber: str
-    content: str
-    sequenceOrder: int
     userId: str | None = None
+    phoneNumber: str
+    userText: str
+    assistantText: str
+    createdAt: str
+    audioKey: str | None = None
 
 
 class MemoryPoint(BaseModel):
@@ -152,7 +153,7 @@ async def chat_stream_endpoint(request: Request) -> ChatResponse:
     return ChatResponse(answer=chat.ask(query))
 
 
-@app.put("/memory/points")
+@app.api_route("/memory/points", methods=["POST", "PUT"])
 def upsert_memory_points(payload: MemoryUpsertRequest) -> dict[str, Any]:
     points = [point.model_dump(mode="python") for point in payload.points]
     memory_store.upsert_points(points)
