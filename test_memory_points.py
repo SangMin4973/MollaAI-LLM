@@ -45,7 +45,7 @@ class MemoryPointsEndpointTests(unittest.TestCase):
         self.assertEqual(stored_points[0]["payload"]["userText"], "I received the wrong item.")
         self.assertEqual(stored_points[0]["payload"]["audioKey"], "calls/a/turns/5.wav")
 
-    def test_allows_nullable_user_id(self) -> None:
+    def test_allows_nullable_user_id_and_assistant_text(self) -> None:
         mock_store = Mock()
         original_store = server.memory_store
         server.memory_store = mock_store
@@ -63,7 +63,7 @@ class MemoryPointsEndpointTests(unittest.TestCase):
                                 "userId": None,
                                 "phoneNumber": "01012345678",
                                 "userText": "I received the wrong item.",
-                                "assistantText": "I'm sorry to hear that. What item did you expect?",
+                                "assistantText": None,
                                 "createdAt": "2026-05-20T07:08:33.742000Z",
                                 "audioKey": "calls/a/turns/5.wav",
                             },
@@ -78,6 +78,7 @@ class MemoryPointsEndpointTests(unittest.TestCase):
         self.assertEqual(response.json(), {"status": "ok", "count": 1})
         stored_points = mock_store.upsert_points.call_args.args[0]
         self.assertIsNone(stored_points[0]["payload"]["userId"])
+        self.assertIsNone(stored_points[0]["payload"]["assistantText"])
 
 
 if __name__ == "__main__":
