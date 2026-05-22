@@ -15,12 +15,8 @@ from transformers import (
 warnings.filterwarnings("ignore")
 logger = logging.getLogger("molla.llm")
 
-MODEL_NAME = "Qwen/Qwen3-4B"
-# quantization_config = BitsAndBytesConfig(
-#     load_in_4bit=True,
-#     bnb_4bit_compute_dtype=torch.bfloat16,
-#     bnb_4bit_quant_type="nf4",
-# )
+TOK_MODEL_NAME =  "Qwen/Qwen3-8B"
+MODEL_NAME = "ssaann/eng_conversation_sft"
 
 gen_config = GenerationConfig(
     max_new_tokens=200,
@@ -31,17 +27,15 @@ gen_config = GenerationConfig(
 )
 
 class QwenChat:
-    def __init__(self, model_name=MODEL_NAME, cache_dir=None):
+    def __init__(self, model_name=MODEL_NAME, tok_model=TOK_MODEL_NAME, cache_dir=None):
         print("🔧 LLM 모델 로딩 중...")
 
         cache_dir = cache_dir or os.getenv("HF_HOME")
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(tok_model)
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype="auto",
-            # torch_dtype=torch.float32,
-            # quantization_config=quantization_config,
+            torch_dtype=torch.float16,
             device_map="auto",
             cache_dir=cache_dir,
         )
