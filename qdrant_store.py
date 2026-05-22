@@ -20,7 +20,7 @@ class UserMemoryStore:
     ) -> None:
         self.url = url or os.getenv("QDRANT_URL", "http://localhost:6333")
         self.collection_name = collection_name or os.getenv("QDRANT_COLLECTION_NAME", "user_memory")
-        self.vector_size = vector_size or int(os.getenv("QDRANT_VECTOR_SIZE", "768"))
+        self.vector_size = vector_size or int(os.getenv("QDRANT_VECTOR_SIZE", "1536"))
         self.client = QdrantClient(url=self.url)
 
     def ensure_collection(self) -> None:
