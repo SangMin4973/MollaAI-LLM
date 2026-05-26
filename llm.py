@@ -26,6 +26,7 @@ RUNTIME_SYSTEM_PROMPT = (
 gen_config = GenerationConfig(
     max_new_tokens=200,
     do_sample=True,
+
     temperature=0.6,
     top_p=0.95,
     top_k=20,
