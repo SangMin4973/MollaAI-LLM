@@ -16,13 +16,19 @@ warnings.filterwarnings("ignore")
 logger = logging.getLogger("molla.llm")
 
 MODEL_NAME = "ssaann/eng_conversation_sft"
+RUNTIME_SYSTEM_PROMPT = (
+    "You are a friendly spoken English conversation partner. "
+    "Prioritize natural conversation, short speakable replies, and gentle correction only when useful. "
+    "Use clear everyday English, natural spoken phrasing, and short follow-up questions. "
+    "Keep corrections brief and natural."
+)
 
 gen_config = GenerationConfig(
     max_new_tokens=200,
     do_sample=True,
-    temperature=0.7,
-    top_p=0.9,
-    top_k=50,
+    temperature=0.6,
+    top_p=0.95,
+    top_k=20,
     remove_invalid_values=True,
     renormalize_logits=True,
 )
@@ -63,34 +69,12 @@ class QwenChat:
             )
 
     def get_prompt(self, query: str):
-        full_prompt = f"""
-You are an English conversation teacher speaking with a student on a live phone call.
-
-Follow these rules strictly:
-- Speak only as the teacher.
-- Never write dialogue for the student.
-- Never include role labels such as "Teacher:", "Student:", "User:", or "Assistant:".
-- Do not create a sample conversation or script.
-- Respond with only one short natural reply for the student's latest utterance.
-- Use at most 2 short sentences.
-- Ask at most 1 short follow-up question only if it helps continue the conversation.
-- Do not answer your own question.
-- Do not use markdown, bullet points, or stage directions.
-- Output plain spoken English only.
-
-<question>
-{query}
-<answer>
-"""
+        full_prompt = query.strip()
 
         messages = [
             {
                 "role": "system",
-                "content": (
-                    "You are an English conversation teacher on a live phone call. "
-                    "Reply briefly in plain spoken English, only as the teacher, "
-                    "and never generate the student's side of the conversation."
-                ),
+                "content": RUNTIME_SYSTEM_PROMPT,
             },
             {"role": "user", "content": full_prompt},
         ]

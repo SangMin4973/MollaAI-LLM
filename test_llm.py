@@ -32,6 +32,16 @@ class _EmptyStreamer:
 
 
 class LlmStreamAnswerTests(unittest.TestCase):
+    def test_generation_config_matches_runtime_safe_sampling_defaults(self) -> None:
+        if isinstance(llm.gen_config, dict):
+            self.assertEqual(llm.gen_config["temperature"], 0.6)
+            self.assertEqual(llm.gen_config["top_p"], 0.95)
+            self.assertEqual(llm.gen_config["top_k"], 20)
+            return
+        self.assertEqual(llm.gen_config.temperature, 0.6)
+        self.assertEqual(llm.gen_config.top_p, 0.95)
+        self.assertEqual(llm.gen_config.top_k, 20)
+
     def test_init_uses_finetuned_tokenizer_by_default(self) -> None:
         tokenizer_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
         model_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
@@ -103,9 +113,11 @@ class LlmStreamAnswerTests(unittest.TestCase):
 
     def test_get_prompt_retries_without_enable_thinking(self) -> None:
         chat = object.__new__(llm.QwenChat)
+        captured_messages: list[dict[str, str]] = []
 
         class _TokenizerWithoutEnableThinking:
-            def apply_chat_template(self, _messages, **kwargs):
+            def apply_chat_template(self, messages, **kwargs):
+                captured_messages[:] = messages
                 if "enable_thinking" in kwargs:
                     raise TypeError("unexpected keyword argument 'enable_thinking'")
                 return "prompt-without-enable-thinking"
@@ -114,8 +126,11 @@ class LlmStreamAnswerTests(unittest.TestCase):
 
         full_prompt, prompt = chat.get_prompt("hello")
 
-        self.assertIn("hello", full_prompt)
+        self.assertEqual(full_prompt, "hello")
         self.assertEqual(prompt, "prompt-without-enable-thinking")
+        self.assertEqual(captured_messages[1]["content"], "hello")
+        self.assertNotIn("<question>", captured_messages[1]["content"])
+        self.assertIn("friendly spoken English conversation partner", captured_messages[0]["content"])
 
     def test_returns_fallback_when_generate_thread_fails(self) -> None:
         chat = object.__new__(llm.QwenChat)
