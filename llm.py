@@ -21,7 +21,9 @@ gen_config = GenerationConfig(
     temperature=0.7,
     top_p=0.9,
     top_k=50,
-)
+) 
+
+
 
 class QwenChat:
     def __init__(self, model_name=MODEL_NAME, tok_model=TOK_MODEL_NAME, cache_dir=None):
