@@ -15,7 +15,6 @@ from transformers import (
 warnings.filterwarnings("ignore")
 logger = logging.getLogger("molla.llm")
 
-TOK_MODEL_NAME =  "Qwen/Qwen3-8B"
 MODEL_NAME = "ssaann/eng_conversation_sft"
 
 gen_config = GenerationConfig(
@@ -27,12 +26,13 @@ gen_config = GenerationConfig(
 )
 
 class QwenChat:
-    def __init__(self, model_name=MODEL_NAME, tok_model=TOK_MODEL_NAME, cache_dir=None):
+    def __init__(self, model_name=MODEL_NAME, tok_model=None, cache_dir=None):
         print("🔧 LLM 모델 로딩 중...")
 
         cache_dir = cache_dir or os.getenv("HF_HOME")
+        tok_model = tok_model or model_name
 
-        self.tokenizer = AutoTokenizer.from_pretrained(tok_model)
+        self.tokenizer = AutoTokenizer.from_pretrained(tok_model, extra_special_tokens={})
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype=torch.float16,
@@ -41,6 +41,24 @@ class QwenChat:
         )
 
         print("✅ LLM 준비 완료")
+
+    def _apply_chat_template(self, messages: list[dict[str, str]]) -> str:
+        try:
+            return self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=False,
+            )
+        except TypeError as exc:
+            if "enable_thinking" not in str(exc):
+                raise
+            logger.warning("llm_chat_template_retry_without_enable_thinking")
+            return self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
 
     def get_prompt(self, query: str):
         full_prompt = f"""
@@ -75,17 +93,14 @@ Follow these rules strictly:
             {"role": "user", "content": full_prompt},
         ]
 
-        prompt = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-            enable_thinking=False,
-        )
+        prompt = self._apply_chat_template(messages)
 
         return full_prompt, prompt
 
     def _tokenize_prompt(self, prompt: str) -> dict[str, torch.Tensor]:
         inputs = self.tokenizer(prompt, return_tensors="pt")
+        if getattr(self.model, "hf_device_map", None):
+            return inputs
         model_device = getattr(self.model, "device", None)
         if model_device is None:
             return inputs
@@ -145,9 +160,18 @@ Follow these rules strictly:
                 "streamer": streamer,
             }
 
+            worker_error: list[BaseException] = []
+
+            def _generate_in_worker() -> None:
+                try:
+                    self.model.generate(**generation_kwargs)
+                except Exception as exc:
+                    worker_error.append(exc)
+                    if hasattr(streamer, "on_finalized_text"):
+                        streamer.on_finalized_text("", stream_end=True)
+
             worker = Thread(
-                target=self.model.generate,
-                kwargs=generation_kwargs,
+                target=_generate_in_worker,
                 daemon=True,
             )
             worker.start()
@@ -171,6 +195,8 @@ Follow these rules strictly:
                     yield chunk
 
             worker.join()
+            if worker_error:
+                raise RuntimeError("LLM generation failed in worker thread") from worker_error[0]
             logger.info(
                 "llm_stream_done request_id=%s elapsed_ms=%s chunks=%s",
                 request_id,
