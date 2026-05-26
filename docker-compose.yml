@@ -3,13 +3,18 @@ services:
     image: goodspace/molla-llm:latest
     container_name: molla-llm
     restart: unless-stopped
+    gpus: all
     ports:
       - "8001:8001"
     environment:
       QDRANT_URL: http://qdrant:6333
+      HF_HOME: /app/.cache/huggingface
+      TRANSFORMERS_CACHE: /app/.cache/huggingface
     depends_on:
       qdrant:
         condition: service_started
+    volumes:
+      - huggingface_cache:/app/.cache/huggingface
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -23,3 +28,4 @@ services:
 
 volumes:
   qdrant_storage:
+  huggingface_cache:
