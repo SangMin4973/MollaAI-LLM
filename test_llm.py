@@ -54,6 +54,15 @@ class LlmStreamAnswerTests(unittest.TestCase):
         self.assertEqual(tokenizer_calls[0][0][0], llm.MODEL_NAME)
         self.assertEqual(tokenizer_calls[0][1], {"extra_special_tokens": {}})
         self.assertEqual(model_calls[0][0][0], llm.MODEL_NAME)
+        self.assertEqual(model_calls[0][1]["torch_dtype"], "auto")
+
+    def test_generation_config_enables_invalid_logits_guards(self) -> None:
+        if isinstance(llm.gen_config, dict):
+            self.assertTrue(llm.gen_config["remove_invalid_values"])
+            self.assertTrue(llm.gen_config["renormalize_logits"])
+            return
+        self.assertTrue(llm.gen_config.remove_invalid_values)
+        self.assertTrue(llm.gen_config.renormalize_logits)
 
     def test_tokenize_prompt_moves_inputs_to_embedding_device_for_auto_device_map(self) -> None:
         chat = object.__new__(llm.QwenChat)

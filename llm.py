@@ -23,6 +23,8 @@ gen_config = GenerationConfig(
     temperature=0.7,
     top_p=0.9,
     top_k=50,
+    remove_invalid_values=True,
+    renormalize_logits=True,
 )
 
 class QwenChat:
@@ -35,7 +37,7 @@ class QwenChat:
         self.tokenizer = AutoTokenizer.from_pretrained(tok_model, extra_special_tokens={})
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch.float16,
+            torch_dtype="auto",
             device_map="auto",
             cache_dir=cache_dir,
         )
