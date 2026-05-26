@@ -97,14 +97,22 @@ Follow these rules strictly:
 
         return full_prompt, prompt
 
+    def _resolve_input_device(self):
+        input_embeddings_getter = getattr(self.model, "get_input_embeddings", None)
+        if callable(input_embeddings_getter):
+            input_embeddings = input_embeddings_getter()
+            weight = getattr(input_embeddings, "weight", None)
+            device = getattr(weight, "device", None)
+            if device is not None:
+                return device
+        return getattr(self.model, "device", None)
+
     def _tokenize_prompt(self, prompt: str) -> dict[str, torch.Tensor]:
         inputs = self.tokenizer(prompt, return_tensors="pt")
-        if getattr(self.model, "hf_device_map", None):
+        input_device = self._resolve_input_device()
+        if input_device is None:
             return inputs
-        model_device = getattr(self.model, "device", None)
-        if model_device is None:
-            return inputs
-        return {key: value.to(model_device) for key, value in inputs.items()}
+        return {key: value.to(input_device) for key, value in inputs.items()}
 
     def answer_extraction(self, response: str) -> str:
         try:

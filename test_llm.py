@@ -55,33 +55,42 @@ class LlmStreamAnswerTests(unittest.TestCase):
         self.assertEqual(tokenizer_calls[0][1], {"extra_special_tokens": {}})
         self.assertEqual(model_calls[0][0][0], llm.MODEL_NAME)
 
-    def test_tokenize_prompt_keeps_inputs_on_cpu_for_auto_device_map(self) -> None:
+    def test_tokenize_prompt_moves_inputs_to_embedding_device_for_auto_device_map(self) -> None:
         chat = object.__new__(llm.QwenChat)
 
-        class _FailOnCudaTensor:
+        class _Tensor:
             def __init__(self) -> None:
                 self.calls: list[object] = []
 
             def to(self, device):
                 self.calls.append(device)
-                raise AssertionError("should not move tensor when using hf_device_map")
+                return f"moved:{device}"
 
         class _Tokenizer:
             def __call__(self, _prompt, return_tensors="pt"):
                 return {"input_ids": tensor}
 
+        class _Embeddings:
+            class _Weight:
+                device = "cuda:0"
+
+            weight = _Weight()
+
         class _Model:
             device = "cuda:0"
             hf_device_map = {"model.embed_tokens": 0}
 
-        tensor = _FailOnCudaTensor()
+            def get_input_embeddings(self):
+                return _Embeddings()
+
+        tensor = _Tensor()
         chat.tokenizer = _Tokenizer()
         chat.model = _Model()
 
         inputs = chat._tokenize_prompt("hello")
 
-        self.assertIs(inputs["input_ids"], tensor)
-        self.assertEqual(tensor.calls, [])
+        self.assertEqual(inputs["input_ids"], "moved:cuda:0")
+        self.assertEqual(tensor.calls, ["cuda:0"])
 
     def test_get_prompt_retries_without_enable_thinking(self) -> None:
         chat = object.__new__(llm.QwenChat)
