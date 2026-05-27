@@ -28,6 +28,7 @@ class QwenChat:
         print("🔧 LLM 모델 로딩 중...")
 
         cache_dir = cache_dir or os.getenv("HF_HOME")
+
         self.tokenizer = AutoTokenizer.from_pretrained(tok_model)
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,

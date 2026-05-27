@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import types
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 
@@ -32,6 +33,17 @@ class _EmptyStreamer:
 
 
 class LlmStreamAnswerTests(unittest.TestCase):
+    def test_runtime_requirements_do_not_enable_gptq_dependencies(self) -> None:
+        requirements = Path(__file__).with_name("requirements.txt").read_text().splitlines()
+        active_requirements = {
+            line.strip()
+            for line in requirements
+            if line.strip() and not line.lstrip().startswith("#")
+        }
+
+        self.assertNotIn("auto-gptq==0.7.1", active_requirements)
+        self.assertNotIn("optimum==1.23.3", active_requirements)
+
     def test_generation_config_matches_runtime_safe_sampling_defaults(self) -> None:
         if isinstance(llm.gen_config, dict):
             self.assertEqual(llm.gen_config["temperature"], 0.6)
