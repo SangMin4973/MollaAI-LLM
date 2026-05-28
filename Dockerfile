@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu22.04
+FROM nvidia/cuda:12.6.2-cudnn-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -33,6 +33,7 @@ RUN pip install --index-url https://download.pytorch.org/whl/cu126 \
         torch==2.11.0 \
         torchvision==0.26.0 \
         torchaudio==2.11.0 && \
+    pip install --no-build-isolation gptqmodel==2.2.0 && \
     pip install -r /app/requirements.txt
 
 COPY . /app
